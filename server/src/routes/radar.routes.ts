@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { getRadarScan, launchInterceptor } from '../controllers/radar.controller.js';
+import { getRadarScan, getThreatBoard, getAlerts } from '../controllers/radar.controller.js';
 
 const router = Router();
 
-// Endpoint: GET /api/radar/scan
+// GET /api/radar/scan      — full radar sweep with all targets + physics
 router.get('/scan', getRadarScan);
 
-// Endpoint: POST /api/radar/intercept
-router.post('/intercept', launchInterceptor);
+// GET /api/radar/threats   — only CRITICAL + HIGH targets sorted by ETA
+router.get('/threats', getThreatBoard);
+
+// GET /api/radar/alerts    — notification alert log
+router.get('/alerts', getAlerts);
 
 export default router;

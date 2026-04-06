@@ -1,43 +1,64 @@
 import type { Request, Response } from 'express';
 import { TargetStatus } from '../models/Target.js';
 import { TrajectoryService } from '../services/trajectory.service.js';
+import { notificationService } from '../services/notification.service.js';
 import { db } from '../data/database.js';
 
+// ─── GET /api/radar/scan ──────────────────────────────────────────────────────
 /**
- * Tactical Scan: 
- * Calculates current distance and status for all targets in the system.
+ * Full radar sweep — returns all targets with live physics snapshots,
+ * active alerts, and system telemetry.
  */
-export const getRadarScan = (req: Request, res: Response) => {
-  const updatedTargets = db.targets.map(t => ({
+export const getRadarScan = (_req: Request, res: Response) => {
+  // Auto-update any targets that have passed their deadline
+  db.targets.forEach(target => {
+    const newStatus = TrajectoryService.checkImpactStatus(target);
+    if (newStatus !== target.status) {
+      target.status = newStatus;
+    }
+  });
+
+  const enrichedTargets = db.targets.map(t => ({
     ...t,
-    distance: TrajectoryService.calculateDistance(t),
-    status: TrajectoryService.checkImpactStatus(t)
+    ...TrajectoryService.getSnapshot(t),
   }));
 
+  // Sector summary
+  const summary = {
+    total:       enrichedTargets.length,
+    tracking:    enrichedTargets.filter(t => t.status === TargetStatus.TRACKING).length,
+    intercepted: enrichedTargets.filter(t => t.status === TargetStatus.INTERCEPTED).length,
+    impacted:    enrichedTargets.filter(t => t.status === TargetStatus.IMPACTED).length,
+    neutralized: enrichedTargets.filter(t => t.status === TargetStatus.NEUTRALIZED).length,
+    critical:    enrichedTargets.filter(t => t.threatLevel === 'CRITICAL').length,
+  };
+
   res.json({
-    timestamp: Date.now(),
-    targets: updatedTargets,
-    systemStatus: 'ONLINE'
+    timestamp: new Date().toISOString(),
+    systemStatus: 'ONLINE',
+    summary,
+    targets: enrichedTargets,
+    alerts: notificationService.getCriticalAlerts().slice(-10),
   });
 };
 
+// ─── GET /api/radar/threats ───────────────────────────────────────────────────
 /**
- * Tactical Strike:
- * Deploys an interceptor to neutralize a specific target.
+ * Returns only CRITICAL and HIGH threat targets, sorted by ETA ascending.
  */
-export const launchInterceptor = (req: Request, res: Response) => {
-  const { targetId } = req.body;
-  const target = db.targets.find(t => t.id === targetId);
+export const getThreatBoard = (_req: Request, res: Response) => {
+  const threats = db.targets
+    .map(t => ({ ...t, ...TrajectoryService.getSnapshot(t) }))
+    .filter(t => t.threatLevel === 'CRITICAL' || t.threatLevel === 'HIGH')
+    .sort((a, b) => a.eta - b.eta);
 
-  if (!target) {
-    return res.status(404).json({ error: 'Target not identified.' });
-  }
+  res.json({ count: threats.length, threats });
+};
 
-  // Update status to confirm interception
-  target.status = TargetStatus.INTERCEPTED;
-  
-  res.json({ 
-    message: `Interceptor deployed for target: ${target.title}`,
-    target 
+// ─── GET /api/radar/alerts ───────────────────────────────────────────────────
+export const getAlerts = (_req: Request, res: Response) => {
+  res.json({
+    count: notificationService.getAlerts().length,
+    alerts: notificationService.getAlerts(),
   });
 };

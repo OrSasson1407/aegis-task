@@ -1,8 +1,18 @@
 export enum TargetStatus {
-  TRACKING = 'TRACKING',      // Moving toward the center (Active)
-  INTERCEPTED = 'INTERCEPTED', // Interceptor (Time-block) has been launched
-  IMPACTED = 'IMPACTED',       // Deadline passed without completion
-  NEUTRALIZED = 'NEUTRALIZED'  // Task completed successfully
+  TRACKING    = 'TRACKING',     // Active — moving toward center
+  INTERCEPTED = 'INTERCEPTED',  // Interceptor launched
+  IMPACTED    = 'IMPACTED',     // Deadline passed — mission failed
+  NEUTRALIZED = 'NEUTRALIZED',  // Completed successfully
+}
+
+export enum TargetCategory {
+  ENGINEERING = 'Engineering',
+  OPERATIONS  = 'Operations',
+  SECURITY    = 'Security',
+  HR          = 'HR',
+  SALES       = 'Sales',
+  FINANCE     = 'Finance',
+  OTHER       = 'Other',
 }
 
 export interface ITarget {
@@ -10,27 +20,26 @@ export interface ITarget {
   title: string;
   description?: string;
   status: TargetStatus;
-  
-  // Tactical Data
-  severity: number;      // 1-5 (Affects visual size/color)
-  sector: number;        // 0-359 (Where on the circular radar it sits)
-  
-  // Physics/Time Data
-  launchTimestamp: number; // When the task was created
-  impactTimestamp: number; // THE DEADLINE (When it hits 0,0)
-  
+  category?: string;
+
+  // Tactical Positioning
+  severity: number;   // 1–5 (controls visual size + threat color)
+  sector: number;     // 0–359 (angle on the radar ring)
+
+  // Time/Physics Data
+  launchTimestamp: number;  // When task was created
+  impactTimestamp: number;  // THE DEADLINE — when it hits (0,0)
+
   // Metadata
   tags: string[];
 }
 
-/**
- * A Target class can include methods to calculate 
- * real-time distance from the center.
- */
 export class Target implements ITarget {
   id: string;
   title: string;
+  description?: string;
   status: TargetStatus = TargetStatus.TRACKING;
+  category?: string;
   severity: number;
   sector: number;
   launchTimestamp: number;
@@ -38,11 +47,15 @@ export class Target implements ITarget {
   tags: string[] = [];
 
   constructor(data: Partial<ITarget> & { title: string; impactTimestamp: number }) {
-    this.id = data.id || Math.random().toString(36).substring(7);
+    this.id = data.id || `tgt-${Date.now().toString(36)}`;
     this.title = data.title;
-    this.severity = data.severity || 1;
-    this.sector = data.sector || Math.floor(Math.random() * 360);
-    this.launchTimestamp = data.launchTimestamp || Date.now();
+    this.description = data.description;
+    this.status = data.status || TargetStatus.TRACKING;
+    this.category = data.category || TargetCategory.OTHER;
+    this.severity = data.severity ?? 1;
+    this.sector = data.sector ?? Math.floor(Math.random() * 360);
+    this.launchTimestamp = data.launchTimestamp ?? Date.now();
     this.impactTimestamp = data.impactTimestamp;
+    this.tags = data.tags || [];
   }
 }
